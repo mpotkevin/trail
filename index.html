@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>認知路徑測驗產生器 - 專業版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap');
+
+        :root {
+            --number-size: 70px;
+            --font-size: 31.5px;
+        }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* A4 紙張列印設定 */
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        /* 每一張 A4 頁面容器 */
+        .a4-page {
+            background-color: white;
+            width: 210mm;
+            height: 297mm;
+            padding: 15mm;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            position: relative;
+            overflow: hidden;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            margin: 20px 0;
+            page-break-after: always;
+        }
+
+        /* 黑線遊戲區 - 確保內容絕對不溢出 */
+        .game-board {
+            flex-grow: 1;
+            position: relative;
+            border: 2px solid #000;
+            margin-top: 5mm;
+            box-sizing: border-box;
+            overflow: hidden;
+            background-color: #fff;
+        }
+
+        .number-item {
+            position: absolute;
+            width: var(--number-size);
+            height: var(--number-size);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size);
+            font-weight: bold;
+            border: 2.5px solid #000;
+            border-radius: 50%;
+            background: white;
+            user-select: none;
+            transform-origin: center;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        /* 控制面板樣式 */
+        #controls {
+            width: 100%;
+            background: #ffffff;
+            border-bottom: 2px solid #e5e7eb;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            transition: all 0.3s ease-in-out;
+            max-height: 800px;
+            overflow-y: auto;
+        }
+
+        #controls.collapsed {
+            max-height: 0;
+            padding: 0;
+            margin: 0;
+            opacity: 0;
+            border: none;
+            pointer-events: none;
+        }
+
+        .toggle-container {
+            position: sticky;
+            top: 0;
+            z-index: 1100;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        .toggle-btn {
+            pointer-events: auto;
+            background: #1e293b;
+            color: white;
+            padding: 6px 24px;
+            border-radius: 0 0 12px 12px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        /* 列印模式下隱藏不必要元素 */
+        @media print {
+            body { background: white; margin: 0; padding: 0; }
+            #controls, .no-print, .toggle-container { display: none !important; }
+            .a4-page {
+                box-shadow: none;
+                margin: 0;
+                border: none;
+            }
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        input[type="range"] { width: 100%; cursor: pointer; }
+        input[type="number"] { border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px 8px; }
+        
+        .limit-text {
+            color: #94a3b8;
+            font-size: 0.75rem;
+            margin-left: 4px;
+            font-weight: normal;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="toggle-container no-print">
+        <button id="togglePanel" class="toggle-btn">隱藏 / 顯示設定欄</button>
+    </div>
+
+    <div id="controls" class="no-print shadow-xl">
+        <div class="control-grid">
+            <div class="space-y-3">
+                <h3 class="font-bold border-b pb-1 text-slate-700">1. 內容設定</h3>
+                <div class="flex flex-col gap-1">
+                    <label class="text-sm font-medium">
+                        目標數字數量：<span id="val_targetCount" class="text-blue-600 font-bold">10</span>
+                        <span id="max_targetCount" class="limit-text"></span>
+                    </label>
+                    <input type="range" id="targetCount" value="10" min="2" max="50" oninput="checkCapacity('targetCount')">
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-sm font-medium">
+                        干擾數字數量：<span id="val_noiseCount" class="text-blue-600 font-bold">0</span>
+                        <span id="max_noiseCount" class="limit-text"></span>
+                    </label>
+                    <input type="range" id="noiseCount" value="0" min="0" max="40" oninput="checkCapacity('noiseCount')">
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-sm font-medium text-slate-700">產生份數 (多張不同版)：</label>
+                    <input type="number" id="copyCount" value="1" min="1" max="50" class="w-full">
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <h3 class="font-bold border-b pb-1 text-slate-700">2. 測驗模式</h3>
+                <div class="space-y-2">
+                    <label class="flex items-center gap-2 cursor-pointer font-medium">
+                        <input type="radio" name="mode" value="sequential" checked onchange="generateBatch()"> 基礎標準數列 (1, 2, 3...)
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer font-medium">
+                        <input type="radio" name="mode" value="random" onchange="generateBatch()"> 進階隨機數列
+                    </label>
+                    <hr>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                        <input type="checkbox" id="allowRotation" onchange="generateBatch()"> 數字隨機旋轉
+                    </label>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <h3 class="font-bold border-b pb-1 text-slate-700">3. 視覺與輸出</h3>
+                <div class="flex flex-col gap-1">
+                    <label class="text-sm font-medium">
+                        數字圓圈大小：<span id="val_dotSize" class="text-blue-600 font-bold">70</span>px
+                    </label>
+                    <input type="range" id="dotSize" value="70" min="35" max="110" oninput="checkCapacity('dotSize')">
+                </div>
+                <div class="pt-2">
+                    <button onclick="generateBatch()" class="w-full bg-blue-600 text-white py-2 rounded font-bold hover:bg-blue-700 mb-2 shadow-md">重新產生</button>
+                    <button onclick="triggerPrint()" class="w-full bg-emerald-600 text-white py-2 rounded font-bold hover:bg-emerald-700 shadow-md">列印 / 存為 PDF</button>
+                    <p class="text-[10px] text-slate-500 mt-2 text-center leading-tight">
+                        ※ 預覽與輸出完全一致。<br>
+                        ※ 列印請選擇目的地為「另存為 PDF」。
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="pagesContainer" class="w-full flex flex-col items-center">
+        <!-- 頁面將由此生成 -->
+    </div>
+
+    <script>
+        document.getElementById('togglePanel').onclick = () => {
+            document.getElementById('controls').classList.toggle('collapsed');
+        };
+
+        function updateValDisplay(id) {
+            document.getElementById('val_' + id).innerText = document.getElementById(id).value;
+        }
+
+        function updateStyles() {
+            const size = document.getElementById('dotSize').value;
+            document.documentElement.style.setProperty('--number-size', size + 'px');
+            document.documentElement.style.setProperty('--font-size', (size * 0.45) + 'px');
+            document.getElementById('val_dotSize').innerText = size;
+        }
+
+        /**
+         * 核心：容量平衡與鎖定邏輯
+         */
+        function checkCapacity(triggeredBy) {
+            const targetEl = document.getElementById('targetCount');
+            const noiseEl = document.getElementById('noiseCount');
+            const dotSizeEl = document.getElementById('dotSize');
+            const dotSize = parseInt(dotSizeEl.value);
+
+            // 黑框可用面積 (估計 px)
+            const approxWidth = 680;
+            const approxHeight = 720;
+            
+            // 嚴格的安全間距 (1.4 倍直徑確保即便隨機分佈也不易卡死)
+            const safeDistance = dotSize * 1.4; 
+            const maxCols = Math.floor(approxWidth / safeDistance);
+            const maxRows = Math.floor(approxHeight / safeDistance);
+            
+            // 計算此尺寸下的極限容量 (乘上係數確保佈局演算法能 100% 成功)
+            const totalMax = Math.max(5, Math.floor(maxCols * maxRows * 0.8));
+
+            // 更新介面上的灰字提示與拉桿上限
+            const currentTarget = parseInt(targetEl.value);
+            const currentNoise = parseInt(noiseEl.value);
+
+            // 動態鎖定拉桿上限
+            const targetLimit = Math.max(2, totalMax - currentNoise);
+            targetEl.max = targetLimit;
+            document.getElementById('max_targetCount').innerText = `(上限: ${targetLimit})`;
+
+            const noiseLimit = Math.max(0, totalMax - currentTarget);
+            noiseEl.max = noiseLimit;
+            document.getElementById('max_noiseCount').innerText = `(上限: ${noiseLimit})`;
+
+            if (currentTarget > targetLimit) {
+                targetEl.value = targetLimit;
+            }
+            if (parseInt(noiseEl.value) > noiseLimit) {
+                noiseEl.value = noiseLimit;
+            }
+
+            updateValDisplay('targetCount');
+            updateValDisplay('noiseCount');
+            updateStyles();
+            
+            generateBatch();
+        }
+
+        function triggerPrint() {
+            window.print();
+        }
+
+        function createSinglePage(pageIndex) {
+            const targetCount = parseInt(document.getElementById('targetCount').value);
+            const noiseCount = parseInt(document.getElementById('noiseCount').value);
+            const allowRotation = document.getElementById('allowRotation').checked;
+            const mode = document.querySelector('input[name="mode"]:checked').value;
+            const dotSize = parseInt(document.getElementById('dotSize').value);
+
+            const page = document.createElement('div');
+            page.className = 'a4-page';
+            
+            // 移除底部編號與版權文字，僅保留標題與說明
+            const headerHtml = `
+                <div class="header-section text-center">
+                    <h2 class="text-4xl font-bold mb-4">認知路徑連線測驗</h2>
+                    <div class="instruction-box text-left bg-slate-50 p-4 border-2 border-slate-300 rounded-lg">
+                        <p class="instruction-text text-xl font-bold text-slate-900 mb-1"></p>
+                        <div class="seq-display hidden">
+                            <p class="text-sm text-slate-500 mb-1 italic">請依照此數列順序連線：</p>
+                            <div class="seq-list text-2xl font-black tracking-widest text-center border-2 border-dashed border-slate-400 p-2 bg-white"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between text-lg mt-6 px-4 font-medium">
+                        <span>姓名：____________________</span>
+                        <span>日期：____________________</span>
+                    </div>
+                </div>
+                <div class="game-board"></div>
+            `;
+            page.innerHTML = headerHtml;
+
+            const board = page.querySelector('.game-board');
+            const instruction = page.querySelector('.instruction-text');
+            const seqDisplay = page.querySelector('.seq-display');
+            const seqListEl = page.querySelector('.seq-list');
+
+            let targetNumbers = [];
+            if (mode === 'sequential') {
+                instruction.innerText = `作答說明：請從數字 1 開始，依序 (1 → 2 → 3...) 連接到 ${targetCount}。`;
+                for (let i = 1; i <= targetCount; i++) targetNumbers.push(i);
+            } else {
+                instruction.innerText = `作答說明：請按照下方的「指定數列」順序進行連線。`;
+                seqDisplay.classList.remove('hidden');
+                let pool = Array.from({length: 99}, (_, i) => i + 1);
+                for (let i = 0; i < targetCount; i++) {
+                    const idx = Math.floor(Math.random() * pool.length);
+                    targetNumbers.push(pool.splice(idx, 1)[0]);
+                }
+                seqListEl.innerText = targetNumbers.join(' → ');
+            }
+
+            const items = [];
+            targetNumbers.forEach(val => items.push({ value: val, isTarget: true }));
+
+            let noiseAdded = 0;
+            while (noiseAdded < noiseCount) {
+                let val = Math.floor(Math.random() * 99) + 1;
+                if (!targetNumbers.includes(val) && !items.some(i => i.value === val)) {
+                    items.push({ value: val, isTarget: false });
+                    noiseAdded++;
+                }
+            }
+
+            const shuffledItems = items.sort(() => Math.random() - 0.5);
+            return { page, board, shuffledItems, dotSize, allowRotation };
+        }
+
+        function generateBatch() {
+            const container = document.getElementById('pagesContainer');
+            const copyCount = parseInt(document.getElementById('copyCount').value) || 1;
+            
+            container.innerHTML = '<div class="no-print py-10 text-xl font-bold text-slate-400">正在精密佈局中...</div>';
+            
+            setTimeout(() => {
+                container.innerHTML = '';
+                const pageDataList = [];
+
+                for (let i = 0; i < copyCount; i++) {
+                    const data = createSinglePage(i);
+                    container.appendChild(data.page);
+                    pageDataList.push(data);
+                }
+
+                pageDataList.forEach(data => {
+                    const { board, shuffledItems, dotSize, allowRotation } = data;
+                    const bWidth = board.clientWidth;
+                    const bHeight = board.clientHeight;
+                    
+                    const placedPositions = [];
+                    const minDist = dotSize * 1.35; 
+
+                    shuffledItems.forEach(item => {
+                        const el = document.createElement('div');
+                        el.className = 'number-item';
+                        el.innerText = item.value;
+
+                        if (allowRotation) {
+                            const angle = Math.floor(Math.random() * 100) - 50;
+                            el.style.transform = `rotate(${angle}deg)`;
+                        }
+
+                        let pos;
+                        let attempts = 0;
+                        while (attempts < 1500) { 
+                            pos = {
+                                x: Math.random() * (bWidth - dotSize - 16) + 8,
+                                y: Math.random() * (bHeight - dotSize - 16) + 8
+                            };
+
+                            const tooClose = placedPositions.some(p => {
+                                const dx = p.x - pos.x;
+                                const dy = p.y - pos.y;
+                                return Math.sqrt(dx * dx + dy * dy) < minDist;
+                            });
+
+                            if (!tooClose) break;
+                            attempts++;
+                        }
+
+                        placedPositions.push(pos);
+                        el.style.left = pos.x + 'px';
+                        el.style.top = pos.y + 'px';
+                        board.appendChild(el);
+                    });
+                });
+            }, 50);
+        }
+
+        window.onload = () => {
+            checkCapacity('init');
+        };
+    </script>
+</body>
+</html>
