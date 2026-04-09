@@ -41,7 +41,6 @@
             display: flex;
             flex-direction: column;
             margin: 20px 0;
-            page-break-after: always;
         }
 
         /* 黑線遊戲區 - 確保內容絕對不溢出 */
@@ -117,14 +116,38 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
 
-        /* 列印模式下隱藏不必要元素 */
+        /* 列印模式修正：移除多餘空白頁 */
         @media print {
-            body { background: white; margin: 0; padding: 0; }
-            #controls, .no-print, .toggle-container { display: none !important; }
+            html, body {
+                height: auto;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: none;
+            }
+            #controls, .no-print, .toggle-container {
+                display: none !important;
+            }
+            #pagesContainer {
+                width: 100%;
+                margin: 0 !important;
+                padding: 0 !important;
+                display: block !important;
+            }
             .a4-page {
                 box-shadow: none;
-                margin: 0;
+                margin: 0 !important;
                 border: none;
+                display: flex !important;
+                page-break-after: always;
+                break-after: page;
+                /* 避免頁面內部發生非預期斷頁 */
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            /* 關鍵修正：最後一頁不套用強制分頁 */
+            .a4-page:last-child {
+                page-break-after: avoid;
+                break-after: avoid;
             }
         }
 
@@ -234,32 +257,24 @@
             document.getElementById('val_dotSize').innerText = size;
         }
 
-        /**
-         * 核心：容量平衡與鎖定邏輯
-         */
         function checkCapacity(triggeredBy) {
             const targetEl = document.getElementById('targetCount');
             const noiseEl = document.getElementById('noiseCount');
             const dotSizeEl = document.getElementById('dotSize');
             const dotSize = parseInt(dotSizeEl.value);
 
-            // 黑框可用面積 (估計 px)
             const approxWidth = 680;
             const approxHeight = 720;
             
-            // 嚴格的安全間距 (1.4 倍直徑確保即便隨機分佈也不易卡死)
             const safeDistance = dotSize * 1.4; 
             const maxCols = Math.floor(approxWidth / safeDistance);
             const maxRows = Math.floor(approxHeight / safeDistance);
             
-            // 計算此尺寸下的極限容量 (乘上係數確保佈局演算法能 100% 成功)
             const totalMax = Math.max(5, Math.floor(maxCols * maxRows * 0.8));
 
-            // 更新介面上的灰字提示與拉桿上限
             const currentTarget = parseInt(targetEl.value);
             const currentNoise = parseInt(noiseEl.value);
 
-            // 動態鎖定拉桿上限
             const targetLimit = Math.max(2, totalMax - currentNoise);
             targetEl.max = targetLimit;
             document.getElementById('max_targetCount').innerText = `(上限: ${targetLimit})`;
@@ -296,7 +311,6 @@
             const page = document.createElement('div');
             page.className = 'a4-page';
             
-            // 移除底部編號與版權文字，僅保留標題與說明
             const headerHtml = `
                 <div class="header-section text-center">
                     <h2 class="text-4xl font-bold mb-4">認知路徑連線測驗</h2>
