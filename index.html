@@ -211,8 +211,12 @@
                         <input type="radio" name="mode" value="random" onchange="generateBatch()"> 進階隨機數列
                     </label>
                     <hr>
+                    <p class="text-xs font-bold text-slate-500 mt-1">增加難度</p>
                     <label class="flex items-center gap-2 cursor-pointer text-sm">
                         <input type="checkbox" id="allowRotation" onchange="generateBatch()"> 數字隨機旋轉
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer text-sm">
+                        <input type="checkbox" id="allowColor" onchange="generateBatch()"> 顏色干擾
                     </label>
                 </div>
             </div>
@@ -234,6 +238,9 @@
                     </p>
                 </div>
             </div>
+        </div>
+        <div class="border-t p-4 text-center text-sm text-slate-500">
+            <a href="https://www.facebook.com/mpotkevin" target="_blank" class="hover:text-blue-600 transition underline underline-offset-4">設計：職能治療師 - 鄭凱文</a>
         </div>
     </div>
 
@@ -305,6 +312,7 @@
             const targetCount = parseInt(document.getElementById('targetCount').value);
             const noiseCount = parseInt(document.getElementById('noiseCount').value);
             const allowRotation = document.getElementById('allowRotation').checked;
+            const allowColor = document.getElementById('allowColor').checked;
             const mode = document.querySelector('input[name="mode"]:checked').value;
             const dotSize = parseInt(document.getElementById('dotSize').value);
 
@@ -363,7 +371,7 @@
             }
 
             const shuffledItems = items.sort(() => Math.random() - 0.5);
-            return { page, board, shuffledItems, dotSize, allowRotation };
+            return { page, board, shuffledItems, dotSize, allowRotation, allowColor };
         }
 
         function generateBatch() {
@@ -382,8 +390,11 @@
                     pageDataList.push(data);
                 }
 
+                // 干擾顏色清單
+                const interferenceColors = ['#fee2e2', '#fef3c7', '#dcfce7', '#dbeafe', '#f3e8ff', '#ffedd5', '#e0f2fe', '#fae8ff', '#f1f5f9'];
+
                 pageDataList.forEach(data => {
-                    const { board, shuffledItems, dotSize, allowRotation } = data;
+                    const { board, shuffledItems, dotSize, allowRotation, allowColor } = data;
                     const bWidth = board.clientWidth;
                     const bHeight = board.clientHeight;
                     
@@ -395,9 +406,16 @@
                         el.className = 'number-item';
                         el.innerText = item.value;
 
+                        // 旋轉處理
                         if (allowRotation) {
                             const angle = Math.floor(Math.random() * 100) - 50;
                             el.style.transform = `rotate(${angle}deg)`;
+                        }
+
+                        // 顏色干擾處理
+                        if (allowColor) {
+                            const randomColor = interferenceColors[Math.floor(Math.random() * interferenceColors.length)];
+                            el.style.backgroundColor = randomColor;
                         }
 
                         let pos;
